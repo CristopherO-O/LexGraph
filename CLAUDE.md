@@ -9,7 +9,9 @@ Aplicativo desktop local que extrai entidades e relações de texto usando model
 - MVP em Python; interface desktop com PySide6.
 - Ollama é o primeiro provedor de inferência. A aplicação deve usar a API local, consultar modelos instalados e não implementar inferência de LLM em C++/Rust.
 - Manter o provedor atrás de uma interface pequena para permitir outro runtime, como llama.cpp, no futuro.
-- Importação de arquivos em pasta é fase posterior: GGUF precisa ser compatível e registrado no Ollama via `Modelfile`/`ollama create`; detectar arquivo não significa que ele pode rodar.
+- GGUF em pasta precisa ser registrado no Ollama (API `/api/create` ou `Modelfile`/`ollama create`); detectar arquivo não significa que ele pode rodar.
+- A importação de GGUF já existe como CLI (`scripts/models.py`): pasta `Models/`, biblioteca `ollama` (`create_blob` + `create`), seleção salva em `.lexgraph/config.json`. A UI deve reutilizar `src/services/models.py` em vez de duplicar a lógica.
+- Registrar um modelo no Ollama não garante que ele execute: o `/api/create` aceita GGUF sem pesos válidos. Não apresentar "importado" como "funcionando".
 - Não fazer fine-tuning no MVP. Usar prompt, JSON Schema, Pydantic e validação semântica.
 - Ler [Planejamento.md](Planejamento.md) antes de alterar arquitetura ou escopo.
 
@@ -28,7 +30,8 @@ Aplicativo desktop local que extrai entidades e relações de texto usando model
 - `src/domain/`: modelos Pydantic e regras do grafo.
 - `src/services/`: orquestração de extração e prompts.
 - `src/providers/`: adaptador Ollama e futuros provedores.
-- `tests/`: testes unitários do schema, validação e conversão grafo (adicionar quando a implementação começar).
+- `scripts/`: ferramentas de linha de comando (ex.: `models.py`); adicionam `src/` ao `sys.path`.
+- `tests/`: testes unitários com `unittest` (`python -m unittest discover -s tests`); sem chamadas reais ao Ollama, use clientes falsos.
 
 Adapte a organização ao código já existente quando ele for criado; evite criar camadas sem necessidade.
 
@@ -38,6 +41,8 @@ Adapte a organização ao código já existente quando ele for criado; evite cri
 - Não colocar chamadas HTTP diretamente em componentes visuais; usar serviços/adaptadores.
 - Atualizar seletor de modelos ao iniciar e sob solicitação do usuário, com feedback quando Ollama estiver indisponível.
 - Mostrar resultados em forma textual além do grafo.
+- Erros para o usuário devem dizer o que aconteceu e como resolver (como em `ModelError`). Operações em lote continuam após falhas e terminam com resumo.
+- Manter o código curto: usar bibliotecas prontas (ex.: `ollama` para a API) em vez de reimplementar HTTP ou utilitários. Dependências ficam em `requirements.txt` e o ambiente em `.venv/`.
 - Manter prompts e schema versionados no código e explicar mudanças incompatíveis.
 - Não baixar modelos ou executar inferência de forma silenciosa. A escolha/instalação do modelo deve ser clara para o usuário.
 
@@ -48,6 +53,6 @@ Adapte a organização ao código já existente quando ele for criado; evite cri
 3. Implementar provedor Ollama e erros recuperáveis.
 4. Fazer UI mínima e lista de resultados.
 5. Renderizar grafo.
-6. Adicionar descoberta e fluxo explícito de importação de GGUF.
+6. Levar descoberta/importação de GGUF para a UI (a versão CLI já existe).
 
 Ao implementar, consultar a documentação oficial atual do runtime escolhido, pois API e suporte podem mudar. O planejamento registra as fontes iniciais e o escopo do MVP.

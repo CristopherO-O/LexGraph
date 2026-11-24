@@ -27,6 +27,10 @@ Usar **Ollama como primeiro adaptador de modelos**. A API local permite listar m
 
 Para o MVP, o fluxo recomendado é instalar o Ollama e baixar modelos por ele. A ideia de “jogar qualquer arquivo em uma pasta e detectar automaticamente” tem limites: arquivos GGUF precisam ser compatíveis com o runtime e o Ollama pede um `Modelfile` e um comando de criação para importar um GGUF. Portanto, planejar a pasta própria do aplicativo como uma melhoria: observar a pasta, reconhecer arquivos `.gguf`, mostrar o que foi encontrado e oferecer **Importar/Registrar**. Só depois de validar o modelo gerar o `Modelfile` e registrá-lo no Ollama. Não tratar um arquivo encontrado como necessariamente utilizável.
 
+**Implementado antes da UI (script `scripts/models.py`):** para facilitar os testes, a descoberta e a importação de GGUF foram adiantadas como ferramenta de linha de comando. O script lista os modelos do Ollama e procura `.gguf` na pasta `Models/` (configurável por `--models-dir`). Ele importa pela biblioteca oficial `ollama` (`create_blob` + `create` com `files`, equivalentes a `/api/blobs` e `/api/create`), sem gerar `Modelfile`, e salva o modelo escolhido em `.lexgraph/config.json`. Sem parâmetro, importa todos os arquivos da pasta, um por vez, continuando após erros. Com parâmetro, procura primeiro no Ollama e depois na pasta. A importação é sempre um comando explícito do usuário. Antes de enviar, ele valida assinatura GGUF, arquivo vazio e partes faltantes de modelos divididos. Lógica em `src/services/models.py`; a futura UI deve reutilizar essas funções.
+
+**Constatado em teste (Ollama 0.40.13):** `/api/create` aceitou um GGUF com cabeçalho válido e sem nenhum tensor. Registrar não comprova que o modelo executa; a compatibilidade real só aparece ao carregar o modelo. Uma verificação de carga, por exemplo uma geração curta, deve ser uma ação explícita e opcional, nunca automática.
+
 Uma alternativa para uma fase posterior é integrar diretamente com **llama.cpp/llama-server**: ele lê GGUF, tem API HTTP compatível com OpenAI e aceita resposta JSON restringida por schema. A aplicação poderia iniciar um servidor por modelo. Isso dá controle maior sobre a pasta de modelos, mas aumenta o trabalho de empacotar binários, configurar CPU/GPU, iniciar/parar processos e lidar com diferenças entre plataformas. Manter um contrato interno de adaptador de inferência permite trocar ou adicionar esse motor sem reescrever a interface.
 
 ### Extração confiável
@@ -126,10 +130,11 @@ Separar a UI da inferência por interfaces simples, por exemplo `ModelProvider.l
 
 ### Etapa 5 — importação e descoberta de modelos
 
-- Começar com a listagem de modelos que Ollama já conhece.
-- Criar uma pasta de modelos configurável e detectar arquivos GGUF adicionados.
-- Mostrar estado “encontrado”, “compatível/importável” ou “erro”; não carregar automaticamente.
-- Para importação confirmada, criar `Modelfile`, registrar com Ollama e atualizar a lista.
+- [feito, CLI] Listagem de modelos que Ollama já conhece.
+- [feito, CLI] Pasta de modelos configurável (`Models/`) com detecção de arquivos GGUF, inclusive divididos; `mmproj` e formatos não GGUF são ignorados com aviso.
+- [feito, CLI] Importação explícita via `/api/blobs` + `/api/create`, um modelo por vez, com erros descritivos e continuação após falhas.
+- Na UI: mostrar estado “encontrado”, “registrado”, “erro”; não carregar automaticamente. Oferecer um teste de carga opcional, pois registro não garante execução.
+- Importação de Safetensors e `Modelfile` personalizado (template/parâmetros) continuam manuais (ver README).
 - Considerar monitoramento automático da pasta depois que o fluxo explícito estiver estável.
 
 **Saída:** caminho compreensível de arquivo GGUF local até modelo selecionável.
@@ -148,7 +153,7 @@ Separar a UI da inferência por interfaces simples, por exemplo `ModelProvider.l
 - Relações sem referência válida e tipos fora do vocabulário são rejeitados ou normalizados de maneira explícita.
 - A UI apresenta os resultados em lista e grafo, sem travar durante a geração.
 - Erros de serviço, modelo e resposta são visíveis e não encerram o aplicativo.
-- Existe um procedimento documentado para instalar modelo via Ollama.
+- Existe um procedimento documentado para instalar modelo via Ollama (feito: README e `scripts/models.py`).
 
 ## 7. Principais riscos e decisões em aberto
 
@@ -161,6 +166,7 @@ Separar a UI da inferência por interfaces simples, por exemplo `ModelProvider.l
 ## 8. Referências técnicas consultadas
 
 - [Ollama — List models API](https://docs.ollama.com/api/tags): consulta dos modelos conhecidos pelo serviço local.
+- [Ollama — Create a model API](https://docs.ollama.com/api/create): criação por `files` (nome → digest SHA-256), inclusive GGUF dividido.
 - [Ollama — Importing a Model](https://docs.ollama.com/import): importação de GGUF/Safetensors por `Modelfile` e `ollama create`.
 - [Ollama — Structured Outputs](https://docs.ollama.com/capabilities/structured-outputs): JSON Schema, Pydantic e validação da saída.
 - [Ollama — Chat API](https://docs.ollama.com/api/chat): endpoint local e campo `format`.

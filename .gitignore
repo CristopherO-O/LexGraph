@@ -1,0 +1,6 @@
+.lexgraph/
+__pycache__/
+*.pyc
+Models/*
+!Models/.gitkeep
+.venv/
